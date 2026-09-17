@@ -30,12 +30,26 @@ app.get('/api/hello', (req, res) => {
 
 // REST APIs cho Student (Câu 36 - 39)
 // GET: Lấy danh sách sinh viên
-app.get('/api/students', async (req, res) => {
+app.post('/api/students', async (req, res) => {
   try {
-    const students = await Student.find();
-    res.json(students);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    const { mssv, name, email } = req.body;
+
+    const student = new Student({
+      studentId: mssv,
+      mssv: mssv,
+      name: name,
+      email: email
+    });
+
+    const savedStudent = await student.save();
+
+    res.status(201).json(savedStudent);
+
+  } catch (error) {
+    console.error('Lỗi thêm sinh viên:', error);
+    res.status(500).json({
+      error: error.message
+    });
   }
 });
 
@@ -71,4 +85,18 @@ app.delete('/api/students/:id', async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Server đang chạy trên port ${PORT}`);
+});
+// server/index.js hoặc server/routes/students.js
+app.put('/api/students/:id', async (req, res) => {
+  try {
+    const updatedStudent = await Student.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true } // Trả về dữ liệu mới sau khi cập nhật
+    );
+    if (!updatedStudent) return res.status(404).json({ message: "Không tìm thấy sinh viên" });
+    res.json(updatedStudent);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 });
