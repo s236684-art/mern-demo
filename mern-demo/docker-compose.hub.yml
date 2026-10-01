@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  # Câu 51: Khai báo Service backend từ Docker Hub
+  backend:
+    image: duyanhvo123/mern-backend:1.0
+    container_name: mern-backend-hub
+    # Câu 53: Cấu hình Port cho Backend Service
+    ports:
+      - "5000:5000"
+    # Câu 55: Cấu hình biến môi trường MONGODB_URI
+    environment:
+      - MONGODB_URI=mongodb+srv://s236684_db_user:1234@cluster0.kb7lfcg.mongodb.net/?appName=Cluster0
+      - PORT=5000
+    restart: always
+
+  # Câu 52: Khai báo Service frontend từ Docker Hub
+  frontend:
+    image: duyanhvo123/mern-frontend:1.0
+    container_name: mern-frontend-hub
+    # Câu 54: Cấu hình Port cho Frontend Service
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:5000
+    depends_on:
+      - backend
+    restart: always
