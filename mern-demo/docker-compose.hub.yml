@@ -16,7 +16,7 @@ services:
 
   # Câu 52: Khai báo Service frontend từ Docker Hub
   frontend:
-    image: duyanhvo123/mern-frontend:1.0
+    image: duyanhvo123/mern-frontend:2.0
     container_name: mern-frontend-hub
     # Câu 54: Cấu hình Port cho Frontend Service
     ports:
