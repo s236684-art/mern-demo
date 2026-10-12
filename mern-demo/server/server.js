@@ -1,3 +1,4 @@
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -6,97 +7,195 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
+// ==================== MIDDLEWARE ====================
 app.use(cors());
 app.use(express.json());
 
-// Kết nối MongoDB Atlas (Câu 33)
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('MongoDB Atlas Connected...'))
-  .catch(err => console.error('MongoDB connection error:', err));
+// ==================== MONGODB SCHEMA ====================
+const studentSchema = new mongoose.Schema(
+  {
+    studentId: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true
+    },
+    name: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    email: {
+      type: String,
+      required: true,
+      trim: true
+    }
+  },
+  { timestamps: true }
+);
 
-// Mongoose Schema & Model (Câu 35)
-const studentSchema = new mongoose.Schema({
-  studentId: { type: String, required: true, unique: true },
-  name: { type: String, required: true },
-  email: { type: String, required: true }
-});
 const Student = mongoose.model('Student', studentSchema);
 
-// API Hello (Câu 22)
+// ==================== HEALTH CHECK ====================
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'UP',
+    database: mongoose.connection.readyState === 1
+      ? 'connected'
+      : 'disconnected'
+  });
+});
+
+// ==================== API HELLO ====================
 app.get('/api/hello', (req, res) => {
-  res.json({ message: 'Backend Node.js + Express đang hoạt động!' });
+  res.json({
+    message: 'Backend Node.js + Express đang hoạt động!'
+  });
 });
 
-// REST APIs cho Student (Câu 36 - 39)
-// GET: Lấy danh sách sinh viên
-app.post('/api/students', async (req, res) => {
+// ==================== GET STUDENTS ====================
+app.get('/api/students', async (req, res) => {
   try {
-    const { mssv, name, email } = req.body;
-
-    const student = new Student({
-      studentId: mssv,
-      mssv: mssv,
-      name: name,
-      email: email
-    });
-
-    const savedStudent = await student.save();
-
-    res.status(201).json(savedStudent);
-
+    const students = await Student.find().sort({ createdAt: -1 });
+    res.status(200).json(students);
   } catch (error) {
-    console.error('Lỗi thêm sinh viên:', error);
+    console.error('Lỗi lấy danh sách sinh viên:', error.message);
     res.status(500).json({
-      error: error.message
+      error: 'Không thể lấy danh sách sinh viên'
     });
   }
 });
 
-// POST: Thêm sinh viên mới
+// ==================== POST STUDENT ====================
 app.post('/api/students', async (req, res) => {
   try {
-    const newStudent = await Student.create(req.body);
-    res.status(201).json(newStudent);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
+    // Hỗ trợ cả tên trường mssv và studentId
+    const studentId = req.body.studentId || req.body.mssv;
+    const { name, email } = req.body;
+
+    if (!studentId || !name || !email) {
+      return res.status(400).json({
+        error: 'Vui lòng nhập mã sinh viên, họ tên và email'
+      });
+    }
+
+    const student = await Student.create({
+      studentId: String(studentId).trim(),
+      name: String(name).trim(),
+      email: String(email).trim()
+    });
+
+    res.status(201).json(student);
+  } catch (error) {
+    console.error('Lỗi thêm sinh viên:', error.message);
+
+    if (error.code === 11000) {
+      return res.status(409).json({
+        error: 'Mã sinh viên đã tồn tại'
+      });
+    }
+
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        error: error.message
+      });
+    }
+
+    res.status(500).json({
+      error: 'Không thể thêm sinh viên'
+    });
   }
 });
 
-// PUT: Cập nhật thông tin sinh viên
+// ==================== PUT UPDATE STUDENT ====================
 app.put('/api/students/:id', async (req, res) => {
   try {
-    const updatedStudent = await Student.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    res.json(updatedStudent);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
+    const updates = {};
 
-// DELETE: Xóa sinh viên
-app.delete('/api/students/:id', async (req, res) => {
-  try {
-    await Student.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Xóa sinh viên thành công!' });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
+    const studentId = req.body.studentId || req.body.mssv;
+    if (studentId !== undefined) {
+      updates.studentId = String(studentId).trim();
+    }
+    if (req.body.name !== undefined) {
+      updates.name = String(req.body.name).trim();
+    }
+    if (req.body.email !== undefined) {
+      updates.email = String(req.body.email).trim();
+    }
 
-app.listen(PORT, () => {
-  console.log(`Server đang chạy trên port ${PORT}`);
-});
-// server/index.js hoặc server/routes/students.js
-app.put('/api/students/:id', async (req, res) => {
-  try {
     const updatedStudent = await Student.findByIdAndUpdate(
       req.params.id,
-      req.body,
-      { new: true } // Trả về dữ liệu mới sau khi cập nhật
+      { $set: updates },
+      { new: true, runValidators: true }
     );
-    if (!updatedStudent) return res.status(404).json({ message: "Không tìm thấy sinh viên" });
+
+    if (!updatedStudent) {
+      return res.status(404).json({
+        error: 'Không tìm thấy sinh viên'
+      });
+    }
+
     res.json(updatedStudent);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('Lỗi cập nhật sinh viên:', error.message);
+
+    if (error.code === 11000) {
+      return res.status(409).json({
+        error: 'Mã sinh viên đã tồn tại'
+      });
+    }
+
+    res.status(400).json({ error: error.message });
   }
 });
+
+// ==================== DELETE STUDENT ====================
+app.delete('/api/students/:id', async (req, res) => {
+  try {
+    const deletedStudent = await Student.findByIdAndDelete(
+      req.params.id
+    );
+
+    if (!deletedStudent) {
+      return res.status(404).json({
+        error: 'Không tìm thấy sinh viên'
+      });
+    }
+
+    res.json({
+      message: 'Xóa sinh viên thành công!'
+    });
+  } catch (error) {
+    console.error('Lỗi xóa sinh viên:', error.message);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// ==================== START SERVER ====================
+async function startServer() {
+  const uri = process.env.MONGODB_URI;
+
+  if (!uri ||
+      !/^mongodb(\+srv)?:\/\//.test(uri.trim())) {
+    console.error(
+      'MONGODB_URI bị thiếu hoặc sai định dạng. Hãy kiểm tra Environment trên Render.'
+    );
+    process.exit(1);
+  }
+
+  try {
+    // Chỉ mở server sau khi kết nối database thành công
+    await mongoose.connect(uri.trim());
+
+    console.log('MongoDB Atlas Connected');
+
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server đang chạy trên port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('MongoDB connection error:', error.message);
+    process.exit(1);
+  }
+}
+
+startServer();
